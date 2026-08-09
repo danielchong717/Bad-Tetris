@@ -66,8 +66,8 @@ SDL_Window* gWindow{ nullptr };
 //The renderer used to draw to the window
 SDL_Renderer* gRenderer{ nullptr };
 
-//The PNG image we will render
-LTexture gPngTexture;
+//Images we will be rendering per direction
+LTexture gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
 
 
 
@@ -208,20 +208,38 @@ bool loadMedia()
     //File loading flag
     bool success{ true };
 
-    //Load splash image
-    if (gPngTexture.loadFromFile("02-textures-and-extension-libraries/loaded.png") == false)
+    //Load directional images
+    if (gUpTexture.loadFromFile("03-key-presses-and-key-states/up.png") == false)
     {
-        SDL_Log("Unable to load png image!\n");
+        SDL_Log("Unable to load up png image!\n");
         success = false;
     }
-    
+	if (gDownTexture.loadFromFile("03-key-presses-and-key-states/down.png") == false)
+	{
+		SDL_Log("Unable to load down png image!\n");
+		success = false;
+	}
+	if (gLeftTexture.loadFromFile("03-key-presses-and-key-states/left.png") == false)
+	{
+		SDL_Log("Unable to load left png image!\n");
+		success = false;
+	}
+    	if (gRightTexture.loadFromFile("03-key-presses-and-key-states/right.png") == false)
+	{
+		SDL_Log("Unable to load right png image!\n");
+		success = false;
+	}
+
     return success;
 }
 
 void close()
 {
 	//Destroy texture
-    gPngTexture.destroy();
+    gUpTexture.destroy();
+    gDownTexture.destroy();
+    gLeftTexture.destroy();
+    gRightTexture.destroy();
 
 	//Destroy window we created
 	SDL_DestroyRenderer(gRenderer);
@@ -259,6 +277,12 @@ int main(int argc, char* args[])
             SDL_Event e;
             SDL_zero(e);
 
+			//Current rendered texture
+			LTexture* currentTexture = &gUpTexture;
+
+            //Default background color is white
+			SDL_Color bgColor{ 0xFF, 0xFF, 0xFF, 0xFF };
+
             //Main loop of program
             while (quit == false)
             {
@@ -270,18 +294,54 @@ int main(int argc, char* args[])
                     {
                         //End main loop
                         quit = true;
+                    } //For keyboard presses
+                    else if (e.type == SDL_EVENT_KEY_DOWN) {
+                        switch (e.key.key) {
+                            case (SDLK_UP): currentTexture = &gUpTexture; break;
+                            case (SDLK_DOWN): currentTexture = &gDownTexture; break;
+                            case (SDLK_LEFT): currentTexture = &gLeftTexture; break;
+                            case (SDLK_RIGHT): currentTexture = &gRightTexture; break;
+                        }
                     }
                 }
+
+                //Reset background color to render with less issues
+				bgColor.r = 0xFF;
+				bgColor.g = 0xFF;
+				bgColor.b = 0xFF;
+
+                //Using keystate, set color
+                const bool* keyStates = SDL_GetKeyboardState(nullptr);
+				if (keyStates[SDL_SCANCODE_UP]) {
+					bgColor.r = 0xFF;
+					bgColor.g = 0x00;
+					bgColor.b = 0x00;
+				}
+				else if (keyStates[SDL_SCANCODE_DOWN]) {
+					bgColor.r = 0x00;
+					bgColor.g = 0xFF;
+					bgColor.b = 0x00;
+				}
+				else if (keyStates[SDL_SCANCODE_LEFT]) {
+					bgColor.r = 0x00;
+					bgColor.g = 0x00;
+					bgColor.b = 0xFF;
+				}
+				else if (keyStates[SDL_SCANCODE_RIGHT]) {
+					bgColor.r = 0xFF;
+					bgColor.g = 0xFF;
+					bgColor.b = 0x00;
+				}
 
                 //Fill render white
                 //First argument is renderer                
                 //Second is the region of the screen we want to fill(whole screen from null),
                 //Third is the pixel we want to fill the surface with, we use SDL_MapSurfaceRGB to get the pixel value for white color
-				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+				SDL_SetRenderDrawColor(gRenderer, bgColor.r, bgColor.g, bgColor.b, 0xFF);
                 SDL_RenderClear(gRenderer);
                 
                 //Render image on screen
-                gPngTexture.render(0.f, 0.f);
+                currentTexture->render((kScreenWidth - currentTexture->getWidth() ) / 2.f, (kScreenHeight - currentTexture->getHeight()) / 2.f);
 
                 //Update screen
                 SDL_RenderPresent(gRenderer);
