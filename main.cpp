@@ -1,13 +1,166 @@
 /* Headers */
-//Using SDL and STL string
+//Using SDL, SDL_image, and STL string
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <SDL3_image/SDL_image.h>
 #include <string>
 
 /* Constants */
 //Screen dimension constants
 constexpr int kScreenWidth{ 640 };
 constexpr int kScreenHeight{ 480 };
+
+
+
+/* Class Prototypes */
+class LTexture
+{
+public:
+    //Initializes texture variables
+    LTexture();
+
+    //Cleans up texture variables
+    ~LTexture();
+
+    //Remove copy constructor
+	LTexture(const LTexture&) = delete;
+
+    //Remove copy assignment
+    LTexture& operator=(const LTexture&) = delete;
+
+	//Remove move constructor
+    LTexture(LTexture&&) = delete;
+
+    //Remove move assignment
+    LTexture& operator=(LTexture&&) = delete;
+
+    //Loads texture from disk
+    bool loadFromFile(std::string path);
+
+    //Cleans up texture
+    void destroy();
+
+    //Draws texture
+    void render(float x, float y);
+
+    //Gets texture attributes
+    int getWidth();
+    int getHeight();
+    bool isLoaded();
+
+private:
+    //Contains texture data
+    SDL_Texture* mTexture;
+
+    //Texture dimensions
+    int mWidth;
+    int mHeight;
+};
+
+
+
+/* Global Variables */
+//The window we'll be rendering to
+SDL_Window* gWindow{ nullptr };
+
+//The renderer used to draw to the window
+SDL_Renderer* gRenderer{ nullptr };
+
+//The PNG image we will render
+LTexture gPngTexture;
+
+
+
+/* Class Implementations */
+//LTexture Implementation
+LTexture::LTexture() :
+    //Constructor to initialize texture variables
+    mTexture{ nullptr },
+    mWidth{ 0 },
+    mHeight{ 0 }
+{
+
+}
+
+LTexture::~LTexture()
+{
+    //Destructor to clean up texture
+    destroy();
+}
+
+
+
+bool LTexture::loadFromFile(std::string path)
+{
+    //Clean up texture if it already exists
+    destroy();
+
+    //Load surface
+    if (SDL_Surface* loadedSurface = IMG_Load(path.c_str()); loadedSurface == nullptr)
+    {
+        SDL_Log("Unable to load image %s! SDL_image error: %s\n", path.c_str(), SDL_GetError());
+    }
+    else
+    {
+        //Create texture from surface
+        if (mTexture = SDL_CreateTextureFromSurface(gRenderer, loadedSurface); mTexture == nullptr)
+        {
+            SDL_Log("Unable to create texture from loaded pixels! SDL error: %s\n", SDL_GetError());
+        }
+        else
+        {
+            //Get image dimensions
+            mWidth = loadedSurface->w;
+            mHeight = loadedSurface->h;
+        }
+
+        //Clean up loaded surface
+        SDL_DestroySurface(loadedSurface);
+    }
+
+    //Return success if texture loaded
+    return mTexture != nullptr;
+}
+
+
+
+//Call DestroyTexture to release texture after use.
+void LTexture::destroy()
+{
+    //Clean up texture
+    SDL_DestroyTexture(mTexture);
+    mTexture = nullptr;
+    mWidth = 0;
+    mHeight = 0;
+}
+
+
+
+void LTexture::render(float x, float y)
+{
+    //Set texture position
+	SDL_FRect dstRect{ x, y, static_cast<float>(mWidth), static_cast<float>(mHeight) };
+
+    //Render texture
+    SDL_RenderTexture(gRenderer, mTexture, nullptr, &dstRect);
+}
+
+
+
+int LTexture::getWidth()
+{
+    return mWidth;
+}
+
+int LTexture::getHeight()
+{
+    return mHeight;
+}
+
+bool LTexture::isLoaded()
+{
+    return mTexture != nullptr;
+}
 
 
 
@@ -20,17 +173,6 @@ bool loadMedia();
 
 //Frees media and shuts down SDL
 void close();
-
-
-/* Global Variables */
-//The window we'll be rendering to
-SDL_Window* gWindow{ nullptr };
-
-//The surface contained by the window
-SDL_Surface* gScreenSurface{ nullptr };
-
-//The image we will load and show on the screen
-SDL_Surface* gHelloWorld{ nullptr };
 
 
 
@@ -48,21 +190,18 @@ bool init()
     }
     else
     {
-        //Create window
-        if (gWindow = SDL_CreateWindow("SDL3 Tutorial: Hello SDL3", kScreenWidth, kScreenHeight, 0); gWindow == nullptr)
+        //Create window with renderer
+        if (SDL_CreateWindowAndRenderer("SDL3 Tutorial: Textures and Extension Libraries", kScreenWidth, kScreenHeight, 0, &gWindow, &gRenderer) == false)
         {
             SDL_Log("Window could not be created! SDL error: %s\n", SDL_GetError());
             success = false;
-        }
-        else
-        {
-            //Get window surface
-            gScreenSurface = SDL_GetWindowSurface(gWindow);
         }
     }
 
     return success;
 }
+
+
 
 bool loadMedia()
 {
@@ -70,26 +209,25 @@ bool loadMedia()
     bool success{ true };
 
     //Load splash image
-    std::string imagePath{ "01-hello-sdl3/hello-sdl3.bmp" };
-    if (gHelloWorld = SDL_LoadBMP(imagePath.c_str()); gHelloWorld == nullptr)
+    if (gPngTexture.loadFromFile("02-textures-and-extension-libraries/loaded.png") == false)
     {
-        SDL_Log("Unable to load image %s! SDL Error: %s\n", imagePath.c_str(), SDL_GetError());
+        SDL_Log("Unable to load png image!\n");
         success = false;
     }
-
+    
     return success;
 }
 
 void close()
 {
-	//Destroy surface we loaded
-    SDL_DestroySurface(gHelloWorld);
-	gHelloWorld = nullptr;
+	//Destroy texture
+    gPngTexture.destroy();
 
 	//Destroy window we created
-	SDL_DestroyWindow(gWindow);
+	SDL_DestroyRenderer(gRenderer);
+	gRenderer = nullptr;
+    SDL_DestroyWindow(gWindow);
 	gWindow = nullptr;
-	gScreenSurface = nullptr;
 
 	//Quit SDL subsystems
 	SDL_Quit();
@@ -135,23 +273,18 @@ int main(int argc, char* args[])
                     }
                 }
 
-                //Fill the surface white, 
-                //First argument is surface we want to fill, 
+                //Fill render white
+                //First argument is renderer                
                 //Second is the region of the screen we want to fill(whole screen from null),
                 //Third is the pixel we want to fill the surface with, we use SDL_MapSurfaceRGB to get the pixel value for white color
-                SDL_FillSurfaceRect(gScreenSurface, nullptr, SDL_MapSurfaceRGB(gScreenSurface, 0xFF, 0xFF, 0xFF));
+				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+                SDL_RenderClear(gRenderer);
+                
+                //Render image on screen
+                gPngTexture.render(0.f, 0.f);
 
-                //Render image on screen by 'blitting' it to the screen surface(copy data from source surface,
-                //onto the destination surface like a rubber stamp.
-                //First argument is the source surface, 
-                //Second is the region of the source surface we want to blit(whole image from null),
-                //Third is the actual destination surface we want to blit to,
-                //Fourth is the region of the destination surface we want to blit to(whole screen from null)
-                SDL_BlitSurface(gHelloWorld, nullptr, gScreenSurface, nullptr);
-
-                //Update the surface(or update the rendering for screen surface). Once this is done,
-                //go back to the top, check for inputs, etc etc. until users X's out of program
-                SDL_UpdateWindowSurface(gWindow);
+                //Update screen
+                SDL_RenderPresent(gRenderer);
             }
         }
     }
