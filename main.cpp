@@ -67,7 +67,7 @@ SDL_Window* gWindow{ nullptr };
 SDL_Renderer* gRenderer{ nullptr };
 
 //Images we will be rendering per direction
-LTexture gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
+LTexture gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
 
 
 
@@ -102,16 +102,24 @@ bool LTexture::loadFromFile(std::string path)
     }
     else
     {
-        //Create texture from surface
-        if (mTexture = SDL_CreateTextureFromSurface(gRenderer, loadedSurface); mTexture == nullptr)
-        {
-            SDL_Log("Unable to create texture from loaded pixels! SDL error: %s\n", SDL_GetError());
-        }
+        //Color key image
+		if (SDL_SetSurfaceColorKey(loadedSurface, true, SDL_MapSurfaceRGB(loadedSurface, 0x00, 0xFF, 0xFF)) == false)
+		{
+			SDL_Log("Unable to set color key for image %s! SDL error: %s\n", path.c_str(), SDL_GetError());
+		}
         else
         {
-            //Get image dimensions
-            mWidth = loadedSurface->w;
-            mHeight = loadedSurface->h;
+            //Create texture from surface
+			if (mTexture = SDL_CreateTextureFromSurface(gRenderer, loadedSurface); mTexture == nullptr)
+			{
+				SDL_Log("Unable to create texture from loaded pixels! SDL error: %s\n", SDL_GetError());
+			}
+			else
+			{
+				//Get image dimensions
+				mWidth = loadedSurface->w;
+				mHeight = loadedSurface->h;
+			}
         }
 
         //Clean up loaded surface
@@ -209,24 +217,14 @@ bool loadMedia()
     bool success{ true };
 
     //Load directional images
-    if (gUpTexture.loadFromFile("03-key-presses-and-key-states/up.png") == false)
+    if (gFooTexture.loadFromFile("04-color-keying/foo.png") == false)
     {
         SDL_Log("Unable to load up png image!\n");
         success = false;
     }
-	if (gDownTexture.loadFromFile("03-key-presses-and-key-states/down.png") == false)
+	if (gBgTexture.loadFromFile("04-color-keying/background.png") == false)
 	{
-		SDL_Log("Unable to load down png image!\n");
-		success = false;
-	}
-	if (gLeftTexture.loadFromFile("03-key-presses-and-key-states/left.png") == false)
-	{
-		SDL_Log("Unable to load left png image!\n");
-		success = false;
-	}
-    	if (gRightTexture.loadFromFile("03-key-presses-and-key-states/right.png") == false)
-	{
-		SDL_Log("Unable to load right png image!\n");
+		SDL_Log("Unable to load background image!\n");
 		success = false;
 	}
 
@@ -240,6 +238,8 @@ void close()
     gDownTexture.destroy();
     gLeftTexture.destroy();
     gRightTexture.destroy();
+	gBgTexture.destroy();
+	gFooTexture.destroy();
 
 	//Destroy window we created
 	SDL_DestroyRenderer(gRenderer);
@@ -337,11 +337,12 @@ int main(int argc, char* args[])
                 //First argument is renderer                
                 //Second is the region of the screen we want to fill(whole screen from null),
                 //Third is the pixel we want to fill the surface with, we use SDL_MapSurfaceRGB to get the pixel value for white color
-				SDL_SetRenderDrawColor(gRenderer, bgColor.r, bgColor.g, bgColor.b, 0xFF);
+				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
                 SDL_RenderClear(gRenderer);
                 
                 //Render image on screen
-                currentTexture->render((kScreenWidth - currentTexture->getWidth() ) / 2.f, (kScreenHeight - currentTexture->getHeight()) / 2.f);
+                gBgTexture.render(0.f, 0.f);
+                gFooTexture.render(240.f, 190.f);
 
                 //Update screen
                 SDL_RenderPresent(gRenderer);
