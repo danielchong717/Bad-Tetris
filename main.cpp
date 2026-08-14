@@ -10,12 +10,13 @@
 constexpr int kScreenWidth{ 640 };
 constexpr int kScreenHeight{ 480 };
 
-
-
 /* Class Prototypes */
 class LTexture
 {
 public:
+    //Symbolic constant
+    static constexpr float kOriginalSize = -1.f;
+
     //Initializes texture variables
     LTexture();
 
@@ -41,7 +42,7 @@ public:
     void destroy();
 
     //Draws texture
-    void render(float x, float y);
+    void render(float x, float y, SDL_FRect* clip = nullptr, float width = kOriginalSize, float height = kOriginalSize);
 
     //Gets texture attributes
     int getWidth();
@@ -57,7 +58,15 @@ private:
     int mHeight;
 };
 
+/* Function Prototypes */
+//Starts up SDL and creates window
+bool init();
 
+//Loads media
+bool loadMedia();
+
+//Frees media and shuts down SDL
+void close();
 
 /* Global Variables */
 //The window we'll be rendering to
@@ -67,7 +76,7 @@ SDL_Window* gWindow{ nullptr };
 SDL_Renderer* gRenderer{ nullptr };
 
 //Images we will be rendering per direction
-LTexture gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
+LTexture gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
 
 
 
@@ -87,8 +96,6 @@ LTexture::~LTexture()
     //Destructor to clean up texture
     destroy();
 }
-
-
 
 bool LTexture::loadFromFile(std::string path)
 {
@@ -130,8 +137,6 @@ bool LTexture::loadFromFile(std::string path)
     return mTexture != nullptr;
 }
 
-
-
 //Call DestroyTexture to release texture after use.
 void LTexture::destroy()
 {
@@ -142,18 +147,31 @@ void LTexture::destroy()
     mHeight = 0;
 }
 
-
-
-void LTexture::render(float x, float y)
+void LTexture::render(float x, float y, SDL_FRect* clip, float width, float height)
 {
     //Set texture position
 	SDL_FRect dstRect{ x, y, static_cast<float>(mWidth), static_cast<float>(mHeight) };
 
+    //Default to clip dimensions if clip is given
+	if (clip != nullptr)
+	{
+		dstRect.w = clip->w;
+		dstRect.h = clip->h;
+	}
+
+    //Resize if there are new dimensions
+    if (width > 0)
+    {
+        dstRect.w = width;
+    }
+    if (height > 0)
+    {
+        dstRect.h = height;
+    }
+
     //Render texture
-    SDL_RenderTexture(gRenderer, mTexture, nullptr, &dstRect);
+    SDL_RenderTexture(gRenderer, mTexture, clip, &dstRect);
 }
-
-
 
 int LTexture::getWidth()
 {
@@ -169,18 +187,6 @@ bool LTexture::isLoaded()
 {
     return mTexture != nullptr;
 }
-
-
-
-/* Function Prototypes */
-//Starts up SDL and creates window
-bool init();
-
-//Loads media
-bool loadMedia();
-
-//Frees media and shuts down SDL
-void close();
 
 
 
@@ -209,14 +215,12 @@ bool init()
     return success;
 }
 
-
-
 bool loadMedia()
 {
     //File loading flag
     bool success{ true };
 
-    //Load directional images
+    //Load relevant images
     if (gFooTexture.loadFromFile("04-color-keying/foo.png") == false)
     {
         SDL_Log("Unable to load up png image!\n");
@@ -227,6 +231,11 @@ bool loadMedia()
 		SDL_Log("Unable to load background image!\n");
 		success = false;
 	}
+    if (gSpriteSheetTexture.loadFromFile("05-sprite-clipping-and-stretching/dots.png") == false)
+    {
+        SDL_Log("Unable to load sprite sheet image!\n");
+        success = false;
+    }
 
     return success;
 }
@@ -240,6 +249,7 @@ void close()
     gRightTexture.destroy();
 	gBgTexture.destroy();
 	gFooTexture.destroy();
+    gSpriteSheetTexture.destroy();
 
 	//Destroy window we created
 	SDL_DestroyRenderer(gRenderer);
@@ -294,45 +304,9 @@ int main(int argc, char* args[])
                     {
                         //End main loop
                         quit = true;
-                    } //For keyboard presses
-                    else if (e.type == SDL_EVENT_KEY_DOWN) {
-                        switch (e.key.key) {
-                            case (SDLK_UP): currentTexture = &gUpTexture; break;
-                            case (SDLK_DOWN): currentTexture = &gDownTexture; break;
-                            case (SDLK_LEFT): currentTexture = &gLeftTexture; break;
-                            case (SDLK_RIGHT): currentTexture = &gRightTexture; break;
-                        }
-                    }
+                    } 
                 }
-
-                //Reset background color to render with less issues
-				bgColor.r = 0xFF;
-				bgColor.g = 0xFF;
-				bgColor.b = 0xFF;
-
-                //Using keystate, set color
-                const bool* keyStates = SDL_GetKeyboardState(nullptr);
-				if (keyStates[SDL_SCANCODE_UP]) {
-					bgColor.r = 0xFF;
-					bgColor.g = 0x00;
-					bgColor.b = 0x00;
-				}
-				else if (keyStates[SDL_SCANCODE_DOWN]) {
-					bgColor.r = 0x00;
-					bgColor.g = 0xFF;
-					bgColor.b = 0x00;
-				}
-				else if (keyStates[SDL_SCANCODE_LEFT]) {
-					bgColor.r = 0x00;
-					bgColor.g = 0x00;
-					bgColor.b = 0xFF;
-				}
-				else if (keyStates[SDL_SCANCODE_RIGHT]) {
-					bgColor.r = 0xFF;
-					bgColor.g = 0xFF;
-					bgColor.b = 0x00;
-				}
-
+                
                 //Fill render white
                 //First argument is renderer                
                 //Second is the region of the screen we want to fill(whole screen from null),
@@ -340,12 +314,64 @@ int main(int argc, char* args[])
 				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
                 SDL_RenderClear(gRenderer);
                 
+                //Init sprite clip
+                constexpr float kSpriteSize = 100.f;
+                SDL_FRect spriteClip{ 0.f, 0.f, kSpriteSize, kSpriteSize };
+
+                //Init sprite size
+                SDL_FRect spriteSize{ 0.f, 0.f, kSpriteSize, kSpriteSize };
+
+
+                //Top left sprite
+                spriteClip.x = 0.f;
+                spriteClip.y = 0.f;
+
+                //Set sprite size to original size
+                spriteSize.w = kSpriteSize;
+                spriteSize.h = kSpriteSize;
+
+                //Draw original sized sprite
+                gSpriteSheetTexture.render(0.f, 0.f, &spriteClip, spriteSize.w, spriteSize.h);
+
+                //Top right sprite
+				spriteClip.x = kSpriteSize;
+                spriteClip.y = 0.f;
+
+                //Set sprite to half size
+                spriteSize.w = kSpriteSize * 0.5f;
+				spriteSize.h = kSpriteSize * 0.5f;
+
+                //Draw half size sprite
+                gSpriteSheetTexture.render(kScreenWidth - spriteSize.w, 0.f, &spriteClip, spriteSize.w, spriteSize.h);
+
+                //Bottom left sprite
+                spriteClip.x = 0.f;
+                spriteClip.y = kSpriteSize;
+
+                //Set sprite to double size
+                spriteSize.w = kSpriteSize * 2.f;
+				spriteSize.h = kSpriteSize * 2.f;
+
+				//Draw double size sprite
+                gSpriteSheetTexture.render(0.f, kScreenHeight - spriteSize.h, &spriteClip, spriteSize.w, spriteSize.h);
+
+				//Bottom right sprite
+                spriteClip.x = kSpriteSize;
+                spriteClip.y = kSpriteSize;
+
+                //Squish sprite vertically
+                spriteSize.w = kSpriteSize;
+                spriteSize.h = kSpriteSize * 0.5f;
+
+				//Draw squished sprite
+                gSpriteSheetTexture.render(kScreenWidth - spriteSize.w, kScreenHeight - spriteSize.h, &spriteClip, spriteSize.w, spriteSize.h);
+
                 //Render image on screen
-                gBgTexture.render(0.f, 0.f);
-                gFooTexture.render(240.f, 190.f);
+                // gBgTexture.render(0.f, 0.f);
+                // gFooTexture.render(240.f, 190.f);
 
                 //Update screen
-                SDL_RenderPresent(gRenderer);
+                SDL_RenderPresent( gRenderer );
             }
         }
     }
