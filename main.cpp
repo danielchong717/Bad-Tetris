@@ -42,7 +42,7 @@ public:
     void destroy();
 
     //Draws texture
-    void render(float x, float y, SDL_FRect* clip = nullptr, float width = kOriginalSize, float height = kOriginalSize);
+    void render(float x, float y, SDL_FRect* clip = nullptr, float width = kOriginalSize, float height = kOriginalSize, double degrees = 0.0, SDL_FPoint* center = nullptr, SDL_FlipMode flipMode = SDL_FLIP_NONE);
 
     //Gets texture attributes
     int getWidth();
@@ -76,7 +76,7 @@ SDL_Window* gWindow{ nullptr };
 SDL_Renderer* gRenderer{ nullptr };
 
 //Images we will be rendering per direction
-LTexture gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
+LTexture gArrowTexture, gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
 
 
 
@@ -147,7 +147,7 @@ void LTexture::destroy()
     mHeight = 0;
 }
 
-void LTexture::render(float x, float y, SDL_FRect* clip, float width, float height)
+void LTexture::render(float x, float y, SDL_FRect* clip, float width, float height, double degrees, SDL_FPoint* center, SDL_FlipMode flipmode )
 {
     //Set texture position
 	SDL_FRect dstRect{ x, y, static_cast<float>(mWidth), static_cast<float>(mHeight) };
@@ -170,7 +170,7 @@ void LTexture::render(float x, float y, SDL_FRect* clip, float width, float heig
     }
 
     //Render texture
-    SDL_RenderTexture(gRenderer, mTexture, clip, &dstRect);
+    SDL_RenderTextureRotated(gRenderer, mTexture, clip, &dstRect, degrees, center, flipmode);
 }
 
 int LTexture::getWidth()
@@ -236,6 +236,11 @@ bool loadMedia()
         SDL_Log("Unable to load sprite sheet image!\n");
         success = false;
     }
+    if (gArrowTexture.loadFromFile("06-rotation-and-flipping/arrow.png") == false)
+    {
+        SDL_Log("Unable to load arrow image!\n");
+        success = false;
+    }
 
     return success;
 }
@@ -250,6 +255,7 @@ void close()
 	gBgTexture.destroy();
 	gFooTexture.destroy();
     gSpriteSheetTexture.destroy();
+    gArrowTexture.destroy();
 
 	//Destroy window we created
 	SDL_DestroyRenderer(gRenderer);
@@ -287,6 +293,12 @@ int main(int argc, char* args[])
             SDL_Event e;
             SDL_zero(e);
 
+            //Rotation degrees
+            double degrees = 0.0;
+
+            //Flipmode
+            SDL_FlipMode flipMode = SDL_FLIP_NONE;
+
 			//Current rendered texture
 			LTexture* currentTexture = &gUpTexture;
 
@@ -305,6 +317,31 @@ int main(int argc, char* args[])
                         //End main loop
                         quit = true;
                     } 
+                    // On key press
+                    else if (e.type == SDL_EVENT_KEY_DOWN )
+                    { 
+                        switch (e.key.key)
+                        {
+                            //Rotate on left/right press
+                            case SDLK_LEFT:
+                            degrees -= 36;
+                            break;
+                            case SDLK_RIGHT:
+                            degrees += 36;
+                            break;
+
+                            //Set flip mode based on 1/2/3 key press
+                            case SDLK_1:
+                            flipMode = SDL_FLIP_HORIZONTAL;
+                            break;
+                            case SDLK_2:
+                            flipMode = SDL_FLIP_NONE;
+                            break;
+                            case SDLK_3:
+                            flipMode = SDL_FLIP_VERTICAL;
+                            break;
+                        }
+                    }
                 }
                 
                 //Fill render white
@@ -313,14 +350,19 @@ int main(int argc, char* args[])
                 //Third is the pixel we want to fill the surface with, we use SDL_MapSurfaceRGB to get the pixel value for white color
 				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
                 SDL_RenderClear(gRenderer);
-                
+               
+                //Tutorial #4
+                //Render image on screen
+                gBgTexture.render(0.f, 0.f);
+                gFooTexture.render(240.f, 190.f);
+
+                //Tutorial #5
                 //Init sprite clip
                 constexpr float kSpriteSize = 100.f;
                 SDL_FRect spriteClip{ 0.f, 0.f, kSpriteSize, kSpriteSize };
 
                 //Init sprite size
                 SDL_FRect spriteSize{ 0.f, 0.f, kSpriteSize, kSpriteSize };
-
 
                 //Top left sprite
                 spriteClip.x = 0.f;
@@ -334,12 +376,12 @@ int main(int argc, char* args[])
                 gSpriteSheetTexture.render(0.f, 0.f, &spriteClip, spriteSize.w, spriteSize.h);
 
                 //Top right sprite
-				spriteClip.x = kSpriteSize;
+                spriteClip.x = kSpriteSize;
                 spriteClip.y = 0.f;
 
                 //Set sprite to half size
                 spriteSize.w = kSpriteSize * 0.5f;
-				spriteSize.h = kSpriteSize * 0.5f;
+                spriteSize.h = kSpriteSize * 0.5f;
 
                 //Draw half size sprite
                 gSpriteSheetTexture.render(kScreenWidth - spriteSize.w, 0.f, &spriteClip, spriteSize.w, spriteSize.h);
@@ -350,12 +392,12 @@ int main(int argc, char* args[])
 
                 //Set sprite to double size
                 spriteSize.w = kSpriteSize * 2.f;
-				spriteSize.h = kSpriteSize * 2.f;
+                spriteSize.h = kSpriteSize * 2.f;
 
-				//Draw double size sprite
+                //Draw double size sprite
                 gSpriteSheetTexture.render(0.f, kScreenHeight - spriteSize.h, &spriteClip, spriteSize.w, spriteSize.h);
 
-				//Bottom right sprite
+                //Bottom right sprite
                 spriteClip.x = kSpriteSize;
                 spriteClip.y = kSpriteSize;
 
@@ -363,12 +405,15 @@ int main(int argc, char* args[])
                 spriteSize.w = kSpriteSize;
                 spriteSize.h = kSpriteSize * 0.5f;
 
-				//Draw squished sprite
+                //Draw squished sprite
                 gSpriteSheetTexture.render(kScreenWidth - spriteSize.w, kScreenHeight - spriteSize.h, &spriteClip, spriteSize.w, spriteSize.h);
 
-                //Render image on screen
-                // gBgTexture.render(0.f, 0.f);
-                // gFooTexture.render(240.f, 190.f);
+				//Tutorial #6
+                //Define the center from the corner of the image
+                SDL_FPoint center{ gArrowTexture.getWidth() / 2.f, gArrowTexture.getHeight() / 2.f };
+
+                //Draw texture rotated/flipped
+                gArrowTexture.render((kScreenWidth - gArrowTexture.getWidth()) / 2.f, (kScreenHeight - gArrowTexture.getHeight()) / 2.f, nullptr, LTexture::kOriginalSize, LTexture::kOriginalSize, degrees, &center, flipMode);
 
                 //Update screen
                 SDL_RenderPresent( gRenderer );
