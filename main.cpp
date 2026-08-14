@@ -10,6 +10,24 @@
 constexpr int kScreenWidth{ 640 };
 constexpr int kScreenHeight{ 480 };
 
+//Set color constants
+constexpr int kColorMagnitudeCount = 3;
+constexpr Uint8 kColorMagnitudes[kColorMagnitudeCount] = { 0x00, 0x7F, 0xFF };
+enum class eColorChannel
+{
+    TextureRed = 0,
+    TextureGreen = 1,
+    TextureBlue = 2,
+    TextureAlpha = 3,
+
+    BackgroundRed = 4,
+    BackgroundGreen = 5,
+    BackgroundBlue = 6,
+
+    Total = 7,
+    Unknown = 8
+};
+
 /* Class Prototypes */
 class LTexture
 {
@@ -40,6 +58,15 @@ public:
 
     //Cleans up texture
     void destroy();
+
+    //Set color modulation
+    void setColor(Uint8 red, Uint8 green, Uint8 blue);
+
+    //Set opacity
+	void setAlpha(Uint8 alpha);
+
+    //Set blending mode
+    void setBlending(SDL_BlendMode blendMode);
 
     //Draws texture
     void render(float x, float y, SDL_FRect* clip = nullptr, float width = kOriginalSize, float height = kOriginalSize, double degrees = 0.0, SDL_FPoint* center = nullptr, SDL_FlipMode flipMode = SDL_FLIP_NONE);
@@ -76,7 +103,7 @@ SDL_Window* gWindow{ nullptr };
 SDL_Renderer* gRenderer{ nullptr };
 
 //Images we will be rendering per direction
-LTexture gArrowTexture, gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
+LTexture gColorsTexture, gArrowTexture, gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
 
 
 
@@ -188,7 +215,20 @@ bool LTexture::isLoaded()
     return mTexture != nullptr;
 }
 
+void LTexture::setColor(Uint8 r, Uint8 g, Uint8 b)
+{
+    SDL_SetTextureColorMod(mTexture, r, g, b);
+}
 
+void LTexture::setAlpha(Uint8 alpha)
+{
+    SDL_SetTextureAlphaMod(mTexture, alpha);
+}
+
+void LTexture::setBlending(SDL_BlendMode blendMode)
+{
+    SDL_SetTextureBlendMode(mTexture, blendMode);
+}
 
 /* Function Implementations */
 bool init()
@@ -239,6 +279,11 @@ bool loadMedia()
     if (gArrowTexture.loadFromFile("06-rotation-and-flipping/arrow.png") == false)
     {
         SDL_Log("Unable to load arrow image!\n");
+        success = false;
+    }
+    if (gColorsTexture.loadFromFile("07-color-modulation-and-alpha-blending/colors.png") == false)
+    {
+        SDL_Log("Unable to load colors image!\n");
         success = false;
     }
 
@@ -305,6 +350,20 @@ int main(int argc, char* args[])
             //Default background color is white
 			SDL_Color bgColor{ 0xFF, 0xFF, 0xFF, 0xFF };
 
+            //Initialize colors
+            Uint8 colorChannelsIndices[static_cast<size_t>(eColorChannel::Total)];
+            colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureRed)] = 2;
+            colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureGreen)] = 2;
+            colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureBlue)] = 2;
+            colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureAlpha)] = 2;
+
+            colorChannelsIndices[static_cast<size_t>(eColorChannel::BackgroundRed)] = 2;
+			colorChannelsIndices[static_cast<size_t>(eColorChannel::BackgroundGreen)] = 2;
+            colorChannelsIndices[static_cast<size_t>(eColorChannel::BackgroundBlue)] = 2;
+
+            //Initialize blending
+            gColorsTexture.setBlending(SDL_BLENDMODE_BLEND);
+
             //Main loop of program
             while (quit == false)
             {
@@ -320,8 +379,34 @@ int main(int argc, char* args[])
                     // On key press
                     else if (e.type == SDL_EVENT_KEY_DOWN )
                     { 
+                        eColorChannel channelToUpdate = eColorChannel::Unknown;
                         switch (e.key.key)
                         {
+                            //Update texture color
+                            case SDLK_A:
+                            channelToUpdate = eColorChannel::TextureRed;
+                            break;
+                            case SDLK_S:
+                            channelToUpdate = eColorChannel::TextureGreen;
+                            break;
+                            case SDLK_D:
+							channelToUpdate = eColorChannel::TextureBlue;
+                            break;
+                            case SDLK_F:
+                            channelToUpdate = eColorChannel::TextureAlpha;
+                            break;
+
+							//Update background color
+                            case SDLK_Q:
+                            channelToUpdate = eColorChannel::BackgroundRed;
+                            break;
+                            case SDLK_W:
+                            channelToUpdate = eColorChannel::BackgroundGreen;
+                            break;
+                            case SDLK_E:
+                            channelToUpdate = eColorChannel::BackgroundBlue;
+                            break;
+
                             //Rotate on left/right press
                             case SDLK_LEFT:
                             degrees -= 36;
@@ -340,6 +425,29 @@ int main(int argc, char* args[])
                             case SDLK_3:
                             flipMode = SDL_FLIP_VERTICAL;
                             break;
+                        }
+
+						//Tutorial #7
+                        //If channel key was pressed
+                        if (channelToUpdate != eColorChannel::Unknown)
+                        {
+                            //Cycle through channel values
+                            colorChannelsIndices[static_cast<size_t>(channelToUpdate)]++;
+                            if (colorChannelsIndices[static_cast<size_t>(channelToUpdate)] >= kColorMagnitudeCount)
+                            {
+                                colorChannelsIndices[static_cast<size_t>(channelToUpdate)] = 0;
+                            }
+
+                            //Write color values to console
+                            SDL_Log("Texture - R:%d G: %d B: %d A: %d | Background - R:%d G:%d B:%d",
+                                kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureRed)]],
+                                kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureGreen)]],
+                                kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureBlue)]],
+                                kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureAlpha)]],
+                                kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::BackgroundRed)]],
+                                kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::BackgroundGreen)]],
+                                kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::BackgroundBlue)]]
+                            );
                         }
                     }
                 }
@@ -414,6 +522,24 @@ int main(int argc, char* args[])
 
                 //Draw texture rotated/flipped
                 gArrowTexture.render((kScreenWidth - gArrowTexture.getWidth()) / 2.f, (kScreenHeight - gArrowTexture.getHeight()) / 2.f, nullptr, LTexture::kOriginalSize, LTexture::kOriginalSize, degrees, &center, flipMode);
+
+				//Tutorial #7
+                //Fill the background
+                SDL_SetRenderDrawColor(gRenderer,
+					kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::BackgroundRed)]], 
+					kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::BackgroundGreen)]], 
+					kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::BackgroundBlue)]], 
+					0xFF);
+                SDL_RenderClear(gRenderer);
+
+				//Set texture color and render
+                gColorsTexture.setColor(
+                    kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureRed)]],
+                    kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureGreen)]],
+                    kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureBlue)]]
+                );
+				gColorsTexture.setAlpha(kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureAlpha)]]);
+                gColorsTexture.render((kScreenWidth - gColorsTexture.getWidth()) / 2.f, (kScreenHeight - gColorsTexture.getHeight()) / 2.f);
 
                 //Update screen
                 SDL_RenderPresent( gRenderer );
