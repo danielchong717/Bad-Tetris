@@ -1,8 +1,9 @@
 /* Headers */
-//Using SDL, SDL_image, and STL string
+//Using SDL, SDL_image, SDL_ttf, and STL string
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3_image/SDL_image.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <string>
 
 /* Constants */
@@ -56,6 +57,12 @@ public:
     //Loads texture from disk
     bool loadFromFile(std::string path);
 
+	//Checks if SDL_TTF_MAJOR_VERSION is defined. If it is not, omit code inside the ifdef block.
+    #if defined(SDL_TTF_MAJOR_VERSION)
+    //Creates texture from text
+    bool loadFromRenderedText(std::string textureText, SDL_Color textColor);
+    #endif
+
     //Cleans up texture
     void destroy();
 
@@ -102,8 +109,11 @@ SDL_Window* gWindow{ nullptr };
 //The renderer used to draw to the window
 SDL_Renderer* gRenderer{ nullptr };
 
-//Images we will be rendering per direction
-LTexture gColorsTexture, gArrowTexture, gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
+//Global font
+TTF_Font* gFont{ nullptr };
+
+//Textures to render
+LTexture gTextTexture, gColorsTexture, gArrowTexture, gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
 
 
 
@@ -163,6 +173,39 @@ bool LTexture::loadFromFile(std::string path)
     //Return success if texture loaded
     return mTexture != nullptr;
 }
+
+#if defined(SDL_TTF_MAJOR_VERSION)
+bool LTexture::loadFromRenderedText(std::string textureText, SDL_Color textColor)
+{
+    //Clean up existing texture
+    destroy();
+
+    //Load text surface
+    if (SDL_Surface* textSurface = TTF_RenderText_Blended(gFont, textureText.c_str(), 0, textColor); textSurface == nullptr)
+    {
+        SDL_Log("Unable to render text surface! SDL_ttf error: %s\n", SDL_GetError());
+    }
+    else
+    {
+        //Create texture from surface pixels
+        if (mTexture = SDL_CreateTextureFromSurface(gRenderer, textSurface); mTexture == nullptr)
+        {
+            SDL_Log("Unable to create texture from rendered text! SDL Error: %s\n", SDL_GetError());
+        }
+        else
+        {
+            mWidth = textSurface->w;
+            mHeight = textSurface->h;
+        }
+
+        //Free temp surface
+        SDL_DestroySurface(textSurface);
+    }
+
+    //Return success if texture loaded
+    return mTexture != nullptr;
+}
+#endif
 
 //Call DestroyTexture to release texture after use.
 void LTexture::destroy()
@@ -250,6 +293,15 @@ bool init()
             SDL_Log("Window could not be created! SDL error: %s\n", SDL_GetError());
             success = false;
         }
+        else
+        {
+            //Check for initialization of font loading
+            if (TTF_Init() == false)
+            {
+                SDL_Log("SDL_ttf could not initialize! SDL_ttf error: %s\n", SDL_GetError());
+                success = false;
+            }
+        }
     }
 
     return success;
@@ -260,7 +312,6 @@ bool loadMedia()
     //File loading flag
     bool success{ true };
 
-    //Load relevant images
     if (gFooTexture.loadFromFile("04-color-keying/foo.png") == false)
     {
         SDL_Log("Unable to load up png image!\n");
@@ -287,12 +338,32 @@ bool loadMedia()
         success = false;
     }
 
+    //Tutorial #8
+    //Load scene font
+    std::string fontPath{ "08-true-type-fonts/lazy.ttf" };
+
+    if (gFont = TTF_OpenFont(fontPath.c_str(), 28); gFont == nullptr)
+    {
+        SDL_Log("Could not load %s! SDL_ttf Error: %s\n", fontPath.c_str(), SDL_GetError());
+        success = false;
+    }
+    else
+    {
+        //Load text
+        SDL_Color textColor{ 0x00, 0x00, 0x00, 0xFF };
+        if (gTextTexture.loadFromRenderedText("ttf study and font/text render demonstrate", textColor) == false)
+        {
+            SDL_Log("Could not load text texture %s! SDL_ttf Error: %s\n", fontPath.c_str(), SDL_GetError());
+            success = false;
+        }
+    }
     return success;
 }
 
 void close()
 {
 	//Destroy texture
+    gTextTexture.destroy();
     gUpTexture.destroy();
     gDownTexture.destroy();
     gLeftTexture.destroy();
@@ -309,6 +380,7 @@ void close()
 	gWindow = nullptr;
 
 	//Quit SDL subsystems
+    TTF_Quit();
 	SDL_Quit();
 }
 
@@ -375,59 +447,59 @@ int main(int argc, char* args[])
                     {
                         //End main loop
                         quit = true;
-                    } 
+                    }
                     // On key press
-                    else if (e.type == SDL_EVENT_KEY_DOWN )
-                    { 
+                    else if (e.type == SDL_EVENT_KEY_DOWN)
+                    {
                         eColorChannel channelToUpdate = eColorChannel::Unknown;
                         switch (e.key.key)
                         {
                             //Update texture color
-                            case SDLK_A:
+                        case SDLK_A:
                             channelToUpdate = eColorChannel::TextureRed;
                             break;
-                            case SDLK_S:
+                        case SDLK_S:
                             channelToUpdate = eColorChannel::TextureGreen;
                             break;
-                            case SDLK_D:
-							channelToUpdate = eColorChannel::TextureBlue;
+                        case SDLK_D:
+                            channelToUpdate = eColorChannel::TextureBlue;
                             break;
-                            case SDLK_F:
+                        case SDLK_F:
                             channelToUpdate = eColorChannel::TextureAlpha;
                             break;
 
-							//Update background color
-                            case SDLK_Q:
+                            //Update background color
+                        case SDLK_Q:
                             channelToUpdate = eColorChannel::BackgroundRed;
                             break;
-                            case SDLK_W:
+                        case SDLK_W:
                             channelToUpdate = eColorChannel::BackgroundGreen;
                             break;
-                            case SDLK_E:
+                        case SDLK_E:
                             channelToUpdate = eColorChannel::BackgroundBlue;
                             break;
 
                             //Rotate on left/right press
-                            case SDLK_LEFT:
+                        case SDLK_LEFT:
                             degrees -= 36;
                             break;
-                            case SDLK_RIGHT:
+                        case SDLK_RIGHT:
                             degrees += 36;
                             break;
 
                             //Set flip mode based on 1/2/3 key press
-                            case SDLK_1:
+                        case SDLK_1:
                             flipMode = SDL_FLIP_HORIZONTAL;
                             break;
-                            case SDLK_2:
+                        case SDLK_2:
                             flipMode = SDL_FLIP_NONE;
                             break;
-                            case SDLK_3:
+                        case SDLK_3:
                             flipMode = SDL_FLIP_VERTICAL;
                             break;
                         }
 
-						//Tutorial #7
+                        //Tutorial #7
                         //If channel key was pressed
                         if (channelToUpdate != eColorChannel::Unknown)
                         {
@@ -451,13 +523,6 @@ int main(int argc, char* args[])
                         }
                     }
                 }
-                
-                //Fill render white
-                //First argument is renderer                
-                //Second is the region of the screen we want to fill(whole screen from null),
-                //Third is the pixel we want to fill the surface with, we use SDL_MapSurfaceRGB to get the pixel value for white color
-				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-                SDL_RenderClear(gRenderer);
                
                 //Tutorial #4
                 //Render image on screen
@@ -540,6 +605,16 @@ int main(int argc, char* args[])
                 );
 				gColorsTexture.setAlpha(kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureAlpha)]]);
                 gColorsTexture.render((kScreenWidth - gColorsTexture.getWidth()) / 2.f, (kScreenHeight - gColorsTexture.getHeight()) / 2.f);
+
+                //Fill render white
+                //First argument is renderer                
+                //Second is the region of the screen we want to fill(whole screen from null),
+                //Third is the pixel we want to fill the surface with, we use SDL_MapSurfaceRGB to get the pixel value for white color
+                SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+                SDL_RenderClear(gRenderer);
+
+                //Render text
+                gTextTexture.render((kScreenWidth - gTextTexture.getWidth()) / 2.f, (kScreenHeight - gTextTexture.getHeight()) / 2.f);
 
                 //Update screen
                 SDL_RenderPresent( gRenderer );
