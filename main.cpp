@@ -1,10 +1,11 @@
 /* Headers */
-//Using SDL, SDL_image, SDL_ttf, and STL string
+//Using SDL, SDL_image, SDL_ttf, and STL string/stringstream
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include <string>
+#include <sstream>
 
 /* Constants */
 //Screen dimension constants
@@ -147,7 +148,7 @@ SDL_Renderer* gRenderer{ nullptr };
 TTF_Font* gFont{ nullptr };
 
 //Textures to render
-LTexture gButtonSpriteTexture, gTextTexture, gColorsTexture, gArrowTexture, gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
+LTexture gTimeTextTexture, gButtonSpriteTexture, gTextTexture, gColorsTexture, gArrowTexture, gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
 
 
 
@@ -485,6 +486,25 @@ bool loadMedia()
             success = false;
         }
     }
+
+    //Tutorial #10
+    fontPath = "10-timing/lazy.ttf" ;
+    if (gFont = TTF_OpenFont(fontPath.c_str(), 28); gFont == nullptr)
+    {
+        SDL_Log("Could not load %s! SDL_ttf Error: %s\n", fontPath.c_str(), SDL_GetError());
+        success = false;
+    }
+    else
+    {
+        //Load text
+        SDL_Color textColor{ 0x00, 0x00, 0x00, 0xFF };
+        if (gTextTexture.loadFromRenderedText("ttf study and font/text render demonstrate", textColor) == false)
+        {
+            SDL_Log("Could not load text texture %s! SDL_ttf Error: %s\n", fontPath.c_str(), SDL_GetError());
+            success = false;
+        }
+    }
+
     return success;
 }
 
@@ -573,6 +593,13 @@ int main(int argc, char* args[])
             buttons[2].setPosition(0, kScreenHeight - LButton::kButtonHeight);
             buttons[3].setPosition(kScreenWidth - LButton::kButtonWidth, kScreenHeight - LButton::kButtonHeight);
 
+            //Tutorial #10
+            //Timer start time variable
+            Uint64 startTime = 0;
+
+            //In memory text stream to turn time into text
+            std::stringstream timeText;
+
             //Main loop of program
             while (quit == false)
             {
@@ -585,6 +612,15 @@ int main(int argc, char* args[])
                         //End main loop
                         quit = true;
                     }
+                    //Tutorial #10
+                    //Reset start time on return keypress
+                    else if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_RETURN)
+                    {
+                        //Set the new start time when ENTER key is pressed
+                        //Timer starts by getting current application time with SDL_GetTicks()
+                        startTime = SDL_GetTicks();
+                    }
+                    //Tutorial #7
                     // On key press
                     else if (e.type == SDL_EVENT_KEY_DOWN)
                     {
@@ -592,7 +628,7 @@ int main(int argc, char* args[])
                         switch (e.key.key)
                         {
                             //Update texture color
-                        case SDLK_A:
+                        case SDLK_A:g
                             channelToUpdate = eColorChannel::TextureRed;
                             break;
                         case SDLK_S:
@@ -755,6 +791,24 @@ int main(int argc, char* args[])
                 //Render text
                 gTextTexture.render((kScreenWidth - gTextTexture.getWidth()) / 2.f, (kScreenHeight - gTextTexture.getHeight()) / 2.f);
 
+                //Tutorial #9
+                //Render buttons
+                for (int i = 0; i < kButtonCount; i++)
+                {
+                    buttons[i].render();
+                }
+
+                //Tutorial #10
+                //If the timer has started
+                if (startTime != 0)
+                {
+                    //Update text
+                    timeText.str("");
+                    timeText << "Milliseconds since start time " << SDL_GetTicks() - startTime;
+                    SDL_Color textColor{ 0x00, 0x00, 0x00, 0xFF };
+                    gTimeTextTexture.loadFromRenderedText(timeText.str().c_str(), textColor);
+                }
+                
                 //Fill render white for background
                 //First argument is renderer                
                 //Second is the region of the screen we want to fill(whole screen from null),
@@ -762,12 +816,9 @@ int main(int argc, char* args[])
                 SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
                 SDL_RenderClear(gRenderer);
 
-                //Tutorial #9
-                //Render buttons
-                for (int i = 0; i < kButtonCount; i++)
-                {
-                    buttons[i].render();
-                }
+                //Tutorial #10
+                //Draw text
+                gTimeTextTexture.render((kScreenWidth - gTimeTextTexture.getWidth()) / 2.f, (kScreenHeight - gTimeTextTexture.getHeight()) / 2.f);
 
                 //Update screen
                 SDL_RenderPresent( gRenderer );
