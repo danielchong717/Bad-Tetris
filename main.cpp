@@ -92,6 +92,40 @@ private:
     int mHeight;
 };
 
+class LButton
+{
+    public:
+        //Button dimensions
+        static constexpr int kButtonWidth = 300;
+        static constexpr int kButtonHeight = 200;
+
+        //Initializes internal variables
+        LButton();
+
+        //Sets top left position
+        void setPosition(float x, float y);
+
+        //handles mouse event
+        void handleEvent(SDL_Event* e);
+
+        //Shows button sprite
+        void render();
+    private:
+        enum class eButtonSprite
+        {
+            MouseOut = 0,
+            MouseOverMotion = 1,
+            MouseDown = 2,
+            MouseUp = 3
+        };
+
+        //Top left position
+        SDL_FPoint mPosition;
+
+        //Currently used global sprite
+        eButtonSprite mCurrentSprite;
+};
+
 /* Function Prototypes */
 //Starts up SDL and creates window
 bool init();
@@ -113,7 +147,7 @@ SDL_Renderer* gRenderer{ nullptr };
 TTF_Font* gFont{ nullptr };
 
 //Textures to render
-LTexture gTextTexture, gColorsTexture, gArrowTexture, gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
+LTexture gButtonSpriteTexture, gTextTexture, gColorsTexture, gArrowTexture, gSpriteSheetTexture, gBgTexture, gFooTexture, gUpTexture, gDownTexture, gLeftTexture, gRightTexture;
 
 
 
@@ -273,6 +307,95 @@ void LTexture::setBlending(SDL_BlendMode blendMode)
     SDL_SetTextureBlendMode(mTexture, blendMode);
 }
 
+//Tutorial #9
+//LButton implementation
+LButton::LButton() :
+    mPosition{ 0.f, 0.f },
+    mCurrentSprite{ eButtonSprite::MouseOut }
+{
+
+}
+
+void LButton::setPosition(float x, float y)
+{
+    mPosition.x = x;
+    mPosition.y = y;
+}
+
+void LButton::handleEvent(SDL_Event* e)
+{
+    //If mouse event happened
+    if (e->type == SDL_EVENT_MOUSE_MOTION || e->type == SDL_EVENT_MOUSE_BUTTON_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_UP)
+    {
+        //Get mouse position
+        float x = -1.f, y = -1.f;
+        SDL_GetMouseState(&x, &y);
+
+        //Check if mosue is in button
+        bool inside = true;
+
+        //Mouse is left of the button
+        if (x < mPosition.x)
+        {
+            inside = false;
+        }
+        //Mouse is right of the button
+        else if (x > mPosition.x + kButtonWidth)
+        {
+            inside = false;
+        }
+        // Mouse is above the button
+        else if (y < mPosition.y)
+        {
+            inside = false;
+        }
+        else if (y > mPosition.y + kButtonHeight)
+        {
+            inside = false;
+        }
+
+        //Handle mouse events
+        //Mouse is outside button
+        if (!inside)
+        {
+            mCurrentSprite = eButtonSprite::MouseOut;
+        }
+        //Mouse is inside button
+        else
+        {
+            //Set mouse over sprite
+            switch (e->type)
+            {
+                case SDL_EVENT_MOUSE_MOTION:
+                mCurrentSprite = eButtonSprite::MouseOverMotion;
+                break;
+
+                case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                mCurrentSprite = eButtonSprite::MouseDown;
+                break;
+
+                case SDL_EVENT_MOUSE_BUTTON_UP:
+                mCurrentSprite = eButtonSprite::MouseUp;
+                break;
+            }
+        }
+    }
+}
+
+void LButton::render()
+{
+    //Define sprites
+    SDL_FRect spriteClips[] = {
+        {0.f, 0 * kButtonHeight, kButtonWidth, kButtonHeight },
+        {0.f, 1 * kButtonHeight, kButtonWidth, kButtonHeight },
+        {0.f, 2 * kButtonHeight, kButtonWidth, kButtonHeight },
+        {0.f, 3 * kButtonHeight, kButtonWidth, kButtonHeight },
+    };
+
+    //Show current button sprite
+    gButtonSpriteTexture.render(mPosition.x, mPosition.y, &spriteClips[ static_cast<size_t>( mCurrentSprite ) ] );
+}
+
 /* Function Implementations */
 bool init()
 {
@@ -335,6 +458,11 @@ bool loadMedia()
     if (gColorsTexture.loadFromFile("07-color-modulation-and-alpha-blending/colors.png") == false)
     {
         SDL_Log("Unable to load colors image!\n");
+        success = false;
+    }
+    if (gButtonSpriteTexture.loadFromFile("09-mouse-events/button.png") == false)
+    {
+        SDL_Log("Unable to load button image!\n");
         success = false;
     }
 
@@ -436,6 +564,15 @@ int main(int argc, char* args[])
             //Initialize blending
             gColorsTexture.setBlending(SDL_BLENDMODE_BLEND);
 
+            //Tutorial #9
+            //Place buttons
+            constexpr int kButtonCount = 4;
+            LButton buttons[kButtonCount];
+            buttons[0].setPosition(0, 0);
+            buttons[1].setPosition(kScreenWidth - LButton::kButtonWidth, 0);
+            buttons[2].setPosition(0, kScreenHeight - LButton::kButtonHeight);
+            buttons[3].setPosition(kScreenWidth - LButton::kButtonWidth, kScreenHeight - LButton::kButtonHeight);
+
             //Main loop of program
             while (quit == false)
             {
@@ -522,8 +659,16 @@ int main(int argc, char* args[])
                             );
                         }
                     }
+
+                    //Tutorial #9
+                    //Handle button events
+                    for (int i = 0; i < kButtonCount; ++i)
+                    {
+                        //Passing event from event loop to our buttons, &e being the events
+                        buttons[i].handleEvent(&e);
+                    }
                 }
-               
+
                 //Tutorial #4
                 //Render image on screen
                 gBgTexture.render(0.f, 0.f);
@@ -606,15 +751,23 @@ int main(int argc, char* args[])
 				gColorsTexture.setAlpha(kColorMagnitudes[colorChannelsIndices[static_cast<size_t>(eColorChannel::TextureAlpha)]]);
                 gColorsTexture.render((kScreenWidth - gColorsTexture.getWidth()) / 2.f, (kScreenHeight - gColorsTexture.getHeight()) / 2.f);
 
-                //Fill render white
+                //Tutorial #8
+                //Render text
+                gTextTexture.render((kScreenWidth - gTextTexture.getWidth()) / 2.f, (kScreenHeight - gTextTexture.getHeight()) / 2.f);
+
+                //Fill render white for background
                 //First argument is renderer                
                 //Second is the region of the screen we want to fill(whole screen from null),
                 //Third is the pixel we want to fill the surface with, we use SDL_MapSurfaceRGB to get the pixel value for white color
                 SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
                 SDL_RenderClear(gRenderer);
 
-                //Render text
-                gTextTexture.render((kScreenWidth - gTextTexture.getWidth()) / 2.f, (kScreenHeight - gTextTexture.getHeight()) / 2.f);
+                //Tutorial #9
+                //Render buttons
+                for (int i = 0; i < kButtonCount; i++)
+                {
+                    buttons[i].render();
+                }
 
                 //Update screen
                 SDL_RenderPresent( gRenderer );
